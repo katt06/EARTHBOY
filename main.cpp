@@ -11,9 +11,7 @@
 
 
 
-//319 by 238
-
-
+//320 by 240
 
 
 // Function Prototypes
@@ -23,6 +21,7 @@ void play();
 void instructions();
 void credits();
 bool backButton();
+void victoryScreen();
 
 
 int dropletpts = 0;
@@ -68,18 +67,12 @@ class gameState {
    bool finish = false;
 
 
-
-
    public:
    bool gameOver() {
        finish = true;
 
 
-
-
        LCD.Clear();
-
-
 
 
        LCD.Write("You Died");
@@ -92,24 +85,12 @@ class gameState {
 
 
 
-
-
-
-
        if (isButtonPressed(x, y, 50, 50, 50, 25))
   return x >= btnX && x <= btnX + btnWidth && y >= btnY && y <= btnY + btnHeight;
 
 
 
-
-
-
-
-
    }
-
-
-
 
 
 
@@ -139,13 +120,13 @@ public:
    // Method to draw the droplet
    void draw() {
        if (visible) {
-           FEHImage water("drop.png");
+           FEHImage water("waterDroplet1.png");
            water.Draw(x,y);
        }
    }
   
    // Method to detect collision with EarthBoi
-   bool detectCollision(int earthBoiX, int earthBoiY, int earthBoiRadius) {
+   bool detectCollision(int earthBoiX, int earthBoiY, int earthBoiRadius, int waterX, int waterY) {
        if (!visible) return false; // skip collision check if not visible
 
 
@@ -159,6 +140,7 @@ public:
        int combinedRadius = radius + earthBoiRadius;
        if (distanceSquared <= combinedRadius * combinedRadius) {
            visible = false; // Make the droplet disappear
+        
            return true;     // Collision detected
        }
        return false;
@@ -176,13 +158,7 @@ class Timer {
    private:
 
 
-
-
    float startTime;
-
-
-
-
 
 
 
@@ -218,16 +194,73 @@ void drawTerrain(const std::vector<Terrain>& terrain) {
    }
 }
 
+class Button {
+public:
+    float x, y;        // top-left corner
+    float width, height;
+    FEHImage image;    // Button image
+    std::string action; // e.g., "PLAY", "STATS"
+
+    Button(float posX, float posY, float w, float h, const std::string &imgFile, const std::string &act)
+        : x(posX), y(posY), width(w), height(h), action(act) {
+            //imgFile is std::string
+            //.c_str() converts the std::string to const char*
+        image.Open(imgFile.c_str());
+    }
+
+    void draw() {
+        image.Draw(x, y);
+    }
+
+    //Checks whether a touch is inside the button’s rectangular area
+    bool isPressed(float touchX, float touchY) {
+        return touchX >= x && touchX <= x + width &&
+               touchY >= y && touchY <= y + height;
+    }
+};
+
+class Menu {
+public:
+    std::vector<Button> buttons;
+
+    // add a button
+    void addButton(Button b) {
+        buttons.push_back(b);
+    }
+
+    // Draws all buttons
+    void draw() {
+        // Can do "Button &b : buttons" as well
+        for (auto &b : buttons) {
+            b.draw();
+        }
+        //??
+        LCD.Update();
+    }
+
+    // Check if a button was pressed, returns the action string
+    // loops through all buttons in the menu
+    std::string checkTouch(float touchX, float touchY) {
+        for (auto &b : buttons) {
+            if (b.isPressed(touchX, touchY)) {
+                return b.action;
+            }
+        }
+        return "";
+    }
+};
 
 
 
 class EarthBoi {
 public:
-   float x, y, width = 10, height = 10;  // Position and size
+   float x, y, width = 23, height = 25;  // Position and size
    float velocityX, velocityY;  // Velocity in x and y directions
    float gravity;               // Gravity strength
    bool isJumping;// Flag to check if the player is jumping
 
+   int animationCycle = 1; //Keeps track of which animation frame to use
+   // bool scanningWinBlock = 0, touchingSomething = 0;
 
 
 
@@ -252,9 +285,6 @@ public:
        LCD.SetFontColor(0x352100);
        LCD.FillRectangle(x,y,10,10) ;
 
-
-
-
        if (!isTouchingTerrainRight(terrain)) {
            x++; velocityX = 5;
        }
@@ -262,7 +292,7 @@ public:
    void jump() {
        if (!isJumping) {
            LCD.SetFontColor(0x352100);
-           LCD.FillRectangle(x,y,10,10) ;
+           LCD.FillRectangle(x,y,23,25) ;
            y--;
            velocityY = -8;
            isJumping = true;
@@ -270,17 +300,12 @@ public:
    }
 
 
-
-
-
-
-
-
    // Check if the player is touching terrain in the specified directi.\on
    bool isTouchingTerrainBelow(const std::vector<Terrain>& terrain) {
        for (auto& t : terrain) {
            if (y + height == t.y && x + width > t.x && x < t.x + t.width) { // Check if player is within horizontal bounds
-               return true;
+
+                return true;
            }
        }
        return false;
@@ -288,7 +313,7 @@ public:
    bool isTouchingTerrainAbove(const std::vector<Terrain>& terrain) {
        for (auto& t : terrain) {
            if (y == t.y +t.height && x + width > t.x && x < t.x + t.width) { // Check if player is within horizontal bounds
-               return true;
+                return true;
            }
        }
        return false;
@@ -337,9 +362,6 @@ public:
    }
  
    void handleCollisions(std::vector<Terrain>& terrain) {
-
-
-
 
        // Handle vertical movement (gravity or jumping)
        if (isTouchingTerrainBelow(terrain)) {
@@ -402,14 +424,50 @@ public:
 
 
        LCD.SetFontColor(0x352100); //Replacement Color
-       LCD.DrawRectangle(oldx,oldy,10,10);
+       LCD.FillRectangle(oldx,oldy,23,25);
 
 
+       //TRY TO INTEGRATE
+
+    //    LCD.SetFontColor(GREEN);
+    //    LCD.DrawRectangle(x,y,23,25);
+
+       FEHImage EarthboyWalk1r, EarthboyWalk2r, EarthboyWalk3r, EarthboyBase;
+        FEHImage EarthboyWalk1l, EarthboyWalk2l, EarthboyWalk3l;
 
 
-       LCD.SetFontColor(GREEN);
-       LCD.DrawRectangle(x,y,10,10);
-   }
+        //Right-facing walking frames
+        EarthboyWalk1r.Open("EarthboyWalk1r.png");
+        EarthboyWalk2r.Open("EarthboyWalk2r.png");
+        EarthboyWalk3r.Open("EarthboyWalk3r.png");
+        //Left-facing walking frames
+        EarthboyWalk1l.Open("EarthboyWalk1l.png");
+        EarthboyWalk2l.Open("EarthboyWalk2l.png");
+        EarthboyWalk3l.Open("EarthboyWalk3l.png");
+
+
+        EarthboyBase.Open("EarthboyBase.png");
+
+
+        if (velocityX > 0) { //Checks direction of movement to choose appropriate animation
+            if (animationCycle == 1) {EarthboyWalk1r.Draw(x,y);}
+            if (animationCycle == 2) {EarthboyWalk2r.Draw(x,y);}
+            if (animationCycle == 3) {EarthboyWalk3r.Draw(x,y);}
+        }
+        else if (velocityX < 0) {
+            if (animationCycle == 1) {EarthboyWalk1l.Draw(x,y);}
+            if (animationCycle == 2) {EarthboyWalk2l.Draw(x,y);}
+            if (animationCycle == 3) {EarthboyWalk3l.Draw(x,y);}
+        }
+        else {
+            EarthboyBase.Draw(x,y); //If standing still, faces camera
+        }
+
+
+        if (animationCycle < 3) {animationCycle++;} else {animationCycle = 1;}
+    }
+
+
 };
 
 
@@ -421,13 +479,6 @@ public:
 
 class Plant {
 
-
-
-
-
-
-
-
   private:
       FEHImage deadPlant;
       FEHImage livePlant;
@@ -436,8 +487,8 @@ class Plant {
       //position
       int plantx = 275, planty = 92;
 
-
-
+      //flag to track whether the plan has been harvested
+      bool harvested = false;
 
 
 
@@ -452,6 +503,8 @@ class Plant {
 
       // Method to start the animation
   void animate(EarthBoi &earthboi) {
+          // mark harvested to prevent re-trigger while animation/state persists
+          harvested = true;
       //display deadplant
       deadPlant.Draw(plantx, planty);
       LCD.Update();
@@ -473,29 +526,37 @@ class Plant {
 
 
   void reset() {
+      // reset harvested flag and draw dead plant
+      harvested = false;
       deadPlant.Draw(plantx, planty);
       LCD.Update();
+  }
+
+  // Try to harvest the plant - returns true if the harvest (win) was triggered
+  bool tryHarvest(EarthBoi &earthBoi) {
+      if (harvested) return false;
+      float earthX = earthBoi.x;
+      float earthY = earthBoi.y;
+      float plantX = plantx;
+      float plantY = planty;
+    
+      if (earthX + 10 >= plantX && earthX - 10 <= plantX + 30 &&
+          earthY + 10 >= plantY && earthY - 10 <= plantY + 26) {
+          // trigger animation and mark harvested
+          animate(earthBoi);
+          return true;
+      }
+      return false;
   }
 };
 
 
 // Function to check collision between earthboy and plant
 void touchPlant(EarthBoi &earthBoi, Plant &psprite) {
-   // Get positions and dimensions
-   float earthX = earthBoi.x;
-   float earthY = earthBoi.y;
-   float plantX = 275;
-   float plantY = 92;
-
-
-   // Check for collision (bounding box check)
-   if (earthX + 10 >= plantX && earthX - 10 <= plantX + 30 &&
-       earthY + 10 >= plantY && earthY - 10 <= plantY + 26) {
-       psprite.animate(earthBoi);
-       LCD.Write("You Win!");
-       currentState = 5;
-      
-   }
+    // Delegate to Plant::tryHarvest which will only trigger once
+    if (psprite.tryHarvest(earthBoi)) {
+        currentState = 5;
+    }
 }
 
 
@@ -512,21 +573,10 @@ void buttonUp(EarthBoi &earthBoi){
 
 
 
-
-
-
-
-
   LCD.SetFontColor(LIGHTBLUE);
   LCD.DrawRectangle(upx, upy, upWidth, upHeight);
   LCD.FillRectangle(upx, upy, upWidth, upHeight);
   LCD.Update();
-
-
-
-
-
-
 
 
   float x, y;
@@ -538,19 +588,12 @@ void buttonUp(EarthBoi &earthBoi){
 
 
 
-
-
-
   // Check for collision (bounding box check)
   if (x >= upx && x <= upx + upWidth &&
       y >= upy && y <= upy + upHeight) {
       // If collision occurs, push both objects
      // earthBoi.moveUp(10);    // Move Block 5 units to the right
   }
-
-
-
-
 
 
 
@@ -570,18 +613,10 @@ void buttonRight(EarthBoi &earthBoi){
 
 
 
-
-
-
-
-
   LCD.SetFontColor(LIGHTBLUE);
   LCD.DrawRectangle(rightx, righty, rightWidth, rightHeight);
   LCD.FillRectangle(rightx, righty, rightWidth, rightHeight);
   LCD.Update();
-
-
-
 
 
 
@@ -594,21 +629,12 @@ void buttonRight(EarthBoi &earthBoi){
 
 
 
-
-
-
-
-
   // Check for collision (bounding box check)
   if (x >= rightx && x <= rightx + rightWidth &&
       y >= righty && y <= righty + rightHeight) {
       // If collision occurs, push both objects
      // earthBoi.moveRIGHT(10);    // Move Block 5 units to the right
   }
-
-
-
-
 
 
 
@@ -662,11 +688,6 @@ void buttonLeft(EarthBoi &earthBoi){
 
 
 
-
-
-
-
-
 }
 
 
@@ -681,11 +702,6 @@ void drawButton(float x, float y, float width, float height, int color) {
 
 
 
-
-
-
-
-
 // Generic function to check if a touch is within a button
 bool isButtonPressed(float x, float y, float btnX, float btnY, float btnWidth, float btnHeight) {
   return x >= btnX && x <= btnX + btnWidth && y >= btnY && y <= btnY + btnHeight;
@@ -693,61 +709,32 @@ bool isButtonPressed(float x, float y, float btnX, float btnY, float btnWidth, f
 
 
 
-
-
-
-
-
 // Button handlers
-void handleButtonUp(EarthBoi &earthBoi) {
- // earthBoi.moveUp(10);
-}
+// void handleButtonUp(EarthBoi &earthBoi) {
+//  // earthBoi.moveUp(10);
+// }
 
 
 
+// void handleButtonRight(EarthBoi &earthBoi) {
+//   //earthBoi.moveRIGHT(10);
+// }
+
+
+// void handleButtonLeft(EarthBoi &earthBoi){
+// //  earthBoi.moveLEFT(10);
+// }
+
+
+// void handleButtonUpRight(EarthBoi &earthBoi, float land) {
+//  // earthBoi.moveUPRIGHT(10, 20, land);
+// }
 
 
 
-
-
-void handleButtonRight(EarthBoi &earthBoi) {
-  //earthBoi.moveRIGHT(10);
-}
-
-
-
-
-
-
-
-
-void handleButtonLeft(EarthBoi &earthBoi){
-//  earthBoi.moveLEFT(10);
-}
-
-
-
-
-
-
-
-
-void handleButtonUpRight(EarthBoi &earthBoi, float land) {
- // earthBoi.moveUPRIGHT(10, 20, land);
-}
-
-
-
-
-
-
-
-
-void handleButtonUpLeft(EarthBoi &earthBoi, float land){
- // earthBoi.moveUPLEFT(10, 20, land);
-}
-
-
+// void handleButtonUpLeft(EarthBoi &earthBoi, float land){
+//  // earthBoi.moveUPLEFT(10, 20, land);
+// }
 
 
 int main() {
@@ -769,16 +756,10 @@ int main() {
               credits();
               break;
        case 5: // victory
-              credits();
+              victoryScreen();
               break;
       }
   }
-
-
-
-
-
-
 
 
   return 0;
@@ -786,180 +767,90 @@ int main() {
 
 
 
-
-
-
-
-
-// Draws main menu
 void menuButtons() {
-  LCD.Clear();
-  float x, y, x_trash, y_trash;
-
-
-
-
-
-
-
-
-  // Background
-  FEHImage background("level1background.png");
-  background.Draw(0, 0);
-
-
-
-
-
-
-
-
-  // EARTHBOY Title
-  FEHImage title("logo.png");
-  title.Draw(5, 5);
-
-
-
-
-
-
-
-
-  // PLAY Button
-  FEHImage playImg("play.png");
-  playImg.Draw(halfWidth - 30, halfHeight - 15);
-
-
-
-
-
-
-
-
-  // CREDITS Button
-  FEHImage creditsImg("credits.png");
-  creditsImg.Draw((halfWidth / 2) - 30, halfHeight + 40);
-
-
-
-
-
-
-
-
-  // STATS Button
-  FEHImage statsImg("stats.png");
-  statsImg.Draw((halfWidth + (halfWidth / 2)) - 40, halfHeight + 40);
-
-
-
-
-
-
-
-
-  // INSTRUCTIONS Button
-  FEHImage instructionsImg("gear.png");
-  instructionsImg.Draw(halfWidth + 110, halfHeight + 85);
-
-
-
-
-
-
-
-
-  // Wait for Touch
-  while (!LCD.Touch(&x, &y)) {}
-  while (LCD.Touch(&x_trash, &y_trash)) {}
-
-
-
-
-
-
-
-
-  // Determine Button Press
-  if (x > (halfWidth - 30) && x < (halfWidth + 30) && y > (halfHeight - 15) && y < (halfHeight + 15)) {
-      currentState = 2; // Play
-  } else if (x > ((halfWidth / 2) - 30) && x < ((halfWidth / 2) + 50) && y > (halfHeight + 40) && y < (halfHeight + 55)) {
-      currentState = 4; // Credits
-  } else if (x > ((halfWidth + (halfWidth / 2)) - 40) && x < ((halfWidth + (halfWidth / 2)) + 40) && y > (halfHeight + 40) && y < (halfHeight + 55)) {
-      currentState = 1; // Stats
-  } else if (x > (halfWidth + 110) && x < (halfWidth + 132) && y > (halfHeight + 85) && y < (halfHeight + 105)) {
-      currentState = 3; // Instructions
-  }
+    LCD.Clear();
+
+    // Draw background and title
+    FEHImage background("background.png");
+    background.Draw(0, 0);
+    FEHImage title("logo.png");
+    title.Draw(60, 10);
+
+    // Create menu
+    Menu mainMenu;
+
+    // posX, posY, width, height, image file, text string
+    mainMenu.addButton(Button(halfWidth - 30, halfHeight, 30, 15, "play.png", "PLAY"));
+    mainMenu.addButton(Button((halfWidth / 2) - 30, halfHeight + 40, 70, 15, "credit.png", "CREDITS"));
+    mainMenu.addButton(Button((halfWidth + (halfWidth / 2)) - 40, halfHeight + 40, 30, 15, "stats.png", "STATS"));
+    mainMenu.addButton(Button(halfWidth + 110, halfHeight + 85, 22, 20, "gear.png", "INSTRUCTIONS"));
+
+    mainMenu.draw();
+
+    float x, y, x_trash, y_trash;
+
+    // Wait for touch
+    while (!LCD.Touch(&x, &y)) {}
+    while (LCD.Touch(&x_trash, &y_trash)) {}
+
+    // Determine action
+    std::string action = mainMenu.checkTouch(x, y);
+    if (action == "PLAY") currentState = 2;
+    else if (action == "STATS") currentState = 1;
+    else if (action == "CREDITS") currentState = 4;
+    else if (action == "INSTRUCTIONS") currentState = 3;
 }
-
-
-
-
-
-
 
 
 // Stats Page
 void stats() {
   LCD.Clear();
-  LCD.WriteAt("STATS: ", halfWidth, (halfHeight / 2));
+
+  FEHImage background("background.png");
+    background.Draw(0, 0);
+
+FEHImage statsTitle("statsTitle.png");
+   statsTitle.Draw(0,0);
+
+    LCD.SetFontColor(GOLDENROD);
   LCD.WriteAt("LEVEL: 1", halfWidth - 70, halfHeight-20);
-  LCD.WriteAt("DROPS: ", halfWidth - 70, halfHeight);
-  LCD.WriteAt(dropletpts, halfWidth+20, halfHeight);
-
-
-
+  LCD.WriteAt("DROPS: ", halfWidth - 70, halfHeight+10);
+  LCD.WriteAt(dropletpts, halfWidth+15, halfHeight+10);
 
   if (backButton()) {
       currentState = 0; // Return to Main Menu
   }
 }
-
-
-
-
-
 
 
 
 // Instructions Page
 void instructions() {
   LCD.Clear();
+
+  FEHImage background("background.png");
+    background.Draw(0, 0);
  
    FEHImage instruc("instruction.png");
    instruc.Draw(0,0);
 
-
-
-
-
-
+   LCD.SetFontColor(GOLDENROD);
   if (backButton()) {
       currentState = 0; // Return to Main Menu
   }
 }
 
-
-
-
-
-
-
-
 // Credits Page
 void credits() {
   LCD.Clear();
-  LCD.WriteAt("Creators: ", 50, 50);
-  LCD.WriteAt("Kate Tang", 50, 100);
-  LCD.WriteAt("Gus Khalid", 50, 150);
 
+  FEHImage background("background.png");
+background.Draw(0, 0);
 
+    FEHImage creditsTitle("creditsTitle.png");
+    creditsTitle.Draw(0,0);
 
-
-
-
-
-
+    LCD.SetFontColor(GOLDENROD);
   if (backButton()) {
       currentState = 0; // Return to Main Menu
   }
@@ -973,36 +864,30 @@ void victoryScreen() {
    LCD.Clear();
 
 
-   FEHImage victory("level1background.png");
+   FEHImage victory("WINNER.png");
    victory.Draw(0,0);
 
-
-   // Display Victory Message
-   LCD.SetFontColor(GOLD);
-   LCD.WriteAt("YOU WIN!", halfWidth - 50, halfHeight - 30);
-
-
-   // Display Back Button
-   LCD.SetFontColor(WHITE);
-   LCD.WriteAt("BACK", halfWidth - 20, halfHeight + 35);
+if (backButton()) {
+      currentState = 0; // Return to Main Menu
+  }
 
 
-   LCD.Update();
+//    LCD.Update();
 
 
-   float x, y;
-   float x_trash, y_trash;
+//    float x, y;
+//    float x_trash, y_trash;
 
 
-   // Wait for touch and check if it's on the back button
-   while (!LCD.Touch(&x, &y)) {}
-   while (LCD.Touch(&x_trash, &y_trash)) {}
+//    // Wait for touch and check if it's on the back button
+//    while (!LCD.Touch(&x, &y)) {}
+//    while (LCD.Touch(&x_trash, &y_trash)) {}
 
 
-   if (x > (halfWidth - 50) && x < (halfWidth + 50) &&
-       y > (halfHeight + 30) && y < (halfHeight + 60)) {
-       currentState = 0; // Return to main menu
-   }
+//    if (x > (halfWidth - 50) && x < (halfWidth + 50) &&
+//        y > (halfHeight + 30) && y < (halfHeight + 60)) {
+//        currentState = 0; // Return to main menu
+//    }
 }
 
 
@@ -1010,12 +895,7 @@ void victoryScreen() {
 void play(){
 
 
-
-
    Timer gameTimer;
-
-
-
 
    std::vector<Terrain> terrain;
        //back border
@@ -1052,41 +932,20 @@ void play(){
        terrain.push_back(Terrain(270,112,42,15, TAN)),
        //Terrain(270,112,42,15, TAN),
 
-
-
-
  
    drawTerrain(terrain);
-
-
-
-
 
 
   //testing if STATS button is touched
       LCD.Clear();
 
 
-
-
       //top w/ gap
       LCD.DrawRectangle(7,63,102,20);
       LCD.FillRectangle(7,63,102,20);
 
-
-
-
-
-
-
-
       LCD.DrawRectangle(144,63,101,20);
       LCD.FillRectangle(144,63,101,20);
-
-
-
-
-
 
 
 
@@ -1097,24 +956,13 @@ void play(){
 
 
 
-
-
-
-
       //time();
-
-
-
-
   
       LCD.Update();
 
 
-
-
  
   //ARROW KEYS CODE
-
 
 
 
@@ -1131,15 +979,15 @@ void play(){
    drawTerrain(terrain);
 
 
-   EarthBoi earthboi(50,50); // Initialize EarthBoi
+   EarthBoi earthboi(50,25); // Initialize EarthBoi
    Plant plantsprite;
 
 
-   WaterDrop droplet(40, 120, 7);// Initialize water droplet
+   WaterDrop droplet(40, 140, 7);// Initialize water droplet
    droplet.draw();
 
 
-   WaterDrop droplet2(175, 45, 7);
+   WaterDrop droplet2(175, 23, 7);
    droplet2.draw();
 
 
@@ -1150,6 +998,7 @@ void play(){
    // Display Back Button
       LCD.SetFontColor(GOLD);
       LCD.WriteAt("||", 290, 20);
+
   // Draw buttons
   LCD.SetFontColor(GOLD);
   FEHImage up_arrow("up.png");
@@ -1168,12 +1017,7 @@ void play(){
 
   LCD.Update();
 
-
-
-
   float x, y, x_trash, y_trash;
-
-
 
 
   while (true) {
@@ -1181,14 +1025,25 @@ void play(){
    LCD.Update();
 
 
-   if (droplet.detectCollision(earthboi.x, earthboi.y, 10)) {
+   if (droplet.detectCollision(earthboi.x, earthboi.y, 10, 40, 140)) {
+            LCD.SetFontColor(0x352100); //Replacement Color
+            LCD.FillRectangle(40,140,25,26);
            dropletpts++;
    }
-   if (droplet2.detectCollision(earthboi.x, earthboi.y, 10)) {
+   if (droplet2.detectCollision(earthboi.x, earthboi.y, 10, 175, 23)) {
+            LCD.SetFontColor(0x352100); //Replacement Color
+            LCD.FillRectangle(175,23,25,26);
            dropletpts++;
    }
    touchPlant(earthboi, plantsprite);
-   Sleep(50);
+
+   //?? the hard return??
+    // If touchPlant triggered a win it sets currentState to 5; return so main() can show victoryScreen
+    if (currentState == 5) {
+        Sleep(2);
+        return;
+    }
+    Sleep(50);
 
 
       // Wait for a touch
@@ -1234,9 +1089,8 @@ bool backButton() {
   float x, y, x_trash, y_trash;
 
 
-
-
   // Display Back Button
+  LCD.SetFontColor(GOLDENROD);
   LCD.WriteAt("<BACK", 30, 200);
 
 

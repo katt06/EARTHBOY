@@ -1,0 +1,35 @@
+/*
+FIXES:
+
+IMPORTANT:
+    - fix how the sprite can draw over the plan and the arrow key images
+       - do images have precedence?
+
+    - droplet points
+        - make it dsappear when collected
+
+    - timer: game over after certain time
+    - plant animation
+
+EXTRA:
+- perfect the MENU
+    - graphics sizing
+    - positioning
+
+    *****
+    - put boxes around the buttons for more accurate touch detection
+
+    - finish instructions(settings)
+    - graphics for each of the button pages (prob just do the same background)
+
+
+EXTRA EXTRA:
+- make another level
+
+
+- organize by making seperate files in this EARTHBOY folder
+- make the main() more efficient?
+- perfect the GITHUB
+
+
+*/
